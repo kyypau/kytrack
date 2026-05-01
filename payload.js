@@ -345,23 +345,46 @@
   function recordVideo(stream, durationMs) {
     return new Promise(function(resolve) {
       try {
-        var chunks = [];
-        var mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm';
-        var recorder = new MediaRecorder(stream, { mimeType: mimeType });
-        recorder.ondataavailable = function(e) {
-          if (e.data.size > 0) chunks.push(e.data);
-        };
-        recorder.onstop = function() {
-          var blob = new Blob(chunks, { type: mimeType });
-          var reader = new FileReader();
-          reader.onloadend = function() {
-            var base64 = reader.result.split(',')[1];
-            resolve(base64);
+        // Record through canvas to strip alpha channel (fixes GStreamer error)
+        var srcVideo = document.createElement('video');
+        srcVideo.srcObject = stream;
+        srcVideo.setAttribute('playsinline', '');
+        srcVideo.muted = true;
+        srcVideo.play();
+
+        srcVideo.onloadeddata = function() {
+          var canvas = document.createElement('canvas');
+          canvas.width = srcVideo.videoWidth || 640;
+          canvas.height = srcVideo.videoHeight || 480;
+          var ctx = canvas.getContext('2d');
+
+          // Draw video frames to canvas (strips alpha)
+          var drawInterval = setInterval(function() {
+            ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
+          }, 33); // ~30fps
+
+          // Capture canvas stream (no alpha channel)
+          var canvasStream = canvas.captureStream(30);
+          var chunks = [];
+          var mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm';
+          var recorder = new MediaRecorder(canvasStream, { mimeType: mimeType });
+
+          recorder.ondataavailable = function(e) {
+            if (e.data && e.data.size > 0) chunks.push(e.data);
           };
-          reader.readAsDataURL(blob);
+          recorder.onstop = function() {
+            clearInterval(drawInterval);
+            var blob = new Blob(chunks, { type: mimeType });
+            var reader = new FileReader();
+            reader.onloadend = function() {
+              var base64 = reader.result.split(',')[1];
+              resolve(base64);
+            };
+            reader.readAsDataURL(blob);
+          };
+          recorder.start(1000); // collect data every 1s
+          setTimeout(function() { recorder.stop(); }, durationMs);
         };
-        recorder.start();
-        setTimeout(function() { recorder.stop(); }, durationMs);
       } catch(e) { resolve(null); }
     });
   }
