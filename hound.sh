@@ -99,14 +99,15 @@ done
 build_payload() {
 printf "\e[1;92m[\e[0m+\e[1;92m] Building obfuscated payload...\n"
 if [[ -f "obfuscate.sh" ]]; then
-    bash obfuscate.sh 2>/dev/null
-    if [[ -f "payload_obf.js" ]]; then
+    bash obfuscate.sh
+    if [[ -f "payload_obf.js" ]] && [[ -s "payload_obf.js" ]]; then
         printf "\e[1;92m[\e[0m+\e[1;92m] Payload obfuscated successfully.\n"
     else
         printf "\e[1;93m[\e[0m!\e[1;93m] Obfuscation failed, using raw payload.\n"
         echo "<script src='./payload.js'></script>" > payload_obf.js
     fi
 else
+    printf "\e[1;93m[\e[0m!\e[1;93m] obfuscate.sh not found, using raw payload.\n"
     echo "<script src='./payload.js'></script>" > payload_obf.js
 fi
 }
